@@ -26,7 +26,7 @@ const Navbar = () => {
       return [
         ...baseLinks,
         { path: '/dashboard', label: 'Dashboard', protected: true },
-        { path: '/predict', label: 'Predict', protected: true },
+        { path: '/pcos-prediction', label: 'PCOS Assessment', protected: true },
       ]
     }
 

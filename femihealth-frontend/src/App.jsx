@@ -11,6 +11,7 @@ import Register from './pages/auth/Register'
 import MFASetup from './pages/auth/MFASetup'
 import Dashboard from './pages/Dashboard'
 import PredictionForm from './pages/PredictionForm'
+import PCOSPrediction from './pages/PCOSPrediction'
 import Results from './pages/Results'
 import Education from './pages/Education'
 import AdminDashboard from './pages/AdminDashboard'
@@ -112,6 +113,14 @@ function AppContent() {
             element={
               <ProtectedRoute>
                 <PredictionForm />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/pcos-prediction" 
+            element={
+              <ProtectedRoute>
+                <PCOSPrediction />
               </ProtectedRoute>
             } 
           />

@@ -275,7 +275,7 @@ const Profile = () => {
               <div className="text-center">
                 <div className="relative inline-block">
                   <div className="w-32 h-32 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-4xl font-bold">
-                    {profile?.firstName?.[0]}{profile?.lastName?.[0]}
+                    {(profile?.firstName?.[0] || '').toUpperCase()}{(profile?.lastName?.[0] || '').toUpperCase()}
                   </div>
                   
                   {editing && (

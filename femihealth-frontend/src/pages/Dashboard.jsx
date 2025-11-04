@@ -235,7 +235,7 @@ const Dashboard = () => {
               Export History
             </button>
             
-            <Link to="/predict" className="btn-primary text-sm">
+            <Link to="/pcos-prediction" className="btn-primary text-sm">
               <Plus className="h-4 w-4 mr-2" />
               New Assessment
             </Link>
@@ -351,8 +351,8 @@ const Dashboard = () => {
         <div className="card">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-semibold text-gray-900">Recent Assessments</h3>
-            <Link to="/predict" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-              View All
+            <Link to="/pcos-prediction" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+              New Assessment
             </Link>
           </div>
 
@@ -411,7 +411,7 @@ const Dashboard = () => {
               <p className="text-gray-600 mb-6">
                 Take your first PCOS risk assessment to start tracking your health journey.
               </p>
-              <Link to="/predict" className="btn-primary">
+              <Link to="/pcos-prediction" className="btn-primary">
                 <Plus className="h-4 w-4 mr-2" />
                 Take Assessment
               </Link>

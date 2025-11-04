@@ -49,6 +49,15 @@ export const authAPI = {
 
 // Prediction API
 export const predictionAPI = {
+  // PCOS Risk Assessment (41-feature model)
+  predictPCOS: (data) => api.post('/prediction/pcos', data),
+  
+  // Check ML service health
+  checkHealth: () => api.get('/prediction/health'),
+  
+  // Get minimal input requirements
+  getMinimalInput: () => api.get('/prediction/minimal-input'),
+  
   // Tabular data prediction
   predictTabular: (data) => api.post('/predict/tabular', data),
   

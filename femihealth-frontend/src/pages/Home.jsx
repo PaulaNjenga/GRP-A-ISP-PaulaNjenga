@@ -86,7 +86,7 @@ const Home = () => {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               {user ? (
-                <Link to="/predict" className="btn-primary text-lg px-8 py-3">
+                <Link to="/pcos-prediction" className="btn-primary text-lg px-8 py-3">
                   Start Assessment
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
