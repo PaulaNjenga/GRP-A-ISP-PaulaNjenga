@@ -1,34 +1,95 @@
 import Prediction from '../models/Prediction.js';
+import axios from 'axios';
 
-// Mock ML prediction function - replace with actual ML service call
+// ML Service configuration
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
+const ML_SERVICE_TIMEOUT = 30000; // 30 seconds
+
+// ML prediction function - calls Flask ML service
 const performMLPrediction = async (data, type) => {
+  try {
+    // Call actual ML service
+    const response = await axios.post(
+      `${ML_SERVICE_URL}/predict`,
+      {
+        beta_hcg_i: parseFloat(data.beta_hcg_i),
+        beta_hcg_ii: parseFloat(data.beta_hcg_ii),
+        amh: parseFloat(data.amh)
+      },
+      { 
+        timeout: ML_SERVICE_TIMEOUT,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (response.data && response.data.success) {
+      return {
+        prediction: response.data.prediction,
+        confidence: response.data.confidence,
+        probability: response.data.probability,
+        riskLevel: response.data.risk_level,
+        riskScore: response.data.risk_score,
+        details: response.data.details
+      };
+    } else {
+      throw new Error('Invalid response from ML service');
+    }
+  } catch (error) {
+    console.error('ML Service Error:', error.message);
+    
+    // Fallback to mock prediction if ML service is unavailable
+    console.warn('Falling back to mock prediction...');
+    return performMockPrediction(data, type);
+  }
+};
+
+// Fallback mock prediction function
+const performMockPrediction = async (data, type) => {
   // Simulate ML processing delay
   await new Promise(resolve => setTimeout(resolve, 1000));
 
-  // Mock prediction logic based on some simple rules
+  // Mock prediction logic based on β-hCG and AMH levels
   let prediction = 'negative';
   let confidence = 0.5;
   let riskLevel = 'low';
+  let riskScore = 0;
 
   if (type === 'tabular' || type === 'multimodal') {
-    // Simple rule-based mock prediction
-    const riskFactors = [];
+    const { beta_hcg_i, beta_hcg_ii, amh } = data;
     
-    if (data.bmi && data.bmi > 25) riskFactors.push('High BMI');
-    if (data.cycle && data.cycle === 'irregular') riskFactors.push('Irregular cycle');
-    if (data.weightGain) riskFactors.push('Weight gain');
-    if (data.hairGrowth) riskFactors.push('Excessive hair growth');
-    if (data.pimples) riskFactors.push('Acne');
+    // Simple rule-based mock prediction using your actual parameters
+    // These thresholds are placeholders - will be replaced by trained model
     
-    const riskScore = riskFactors.length;
+    // High AMH levels (>4.0 ng/mL) indicate PCOS risk
+    if (amh && amh > 4.0) {
+      riskScore += 0.4;
+    } else if (amh && amh > 3.0) {
+      riskScore += 0.2;
+    }
     
-    if (riskScore >= 3) {
+    // β-hCG patterns can indicate hormonal imbalances
+    if (beta_hcg_i && beta_hcg_ii) {
+      const hcgRatio = beta_hcg_ii / beta_hcg_i;
+      
+      // Abnormal β-hCG progression
+      if (hcgRatio < 1.5 || hcgRatio > 3.0) {
+        riskScore += 0.3;
+      }
+      
+      // Elevated β-hCG levels
+      if (beta_hcg_i > 100 || beta_hcg_ii > 200) {
+        riskScore += 0.2;
+      }
+    }
+    
+    // Determine risk level based on score
+    if (riskScore >= 0.6) {
       prediction = 'positive';
-      confidence = 0.7 + (riskScore * 0.05);
+      confidence = 0.7 + (riskScore * 0.2);
       riskLevel = 'high';
-    } else if (riskScore >= 2) {
+    } else if (riskScore >= 0.3) {
       prediction = 'uncertain';
-      confidence = 0.6;
+      confidence = 0.6 + (riskScore * 0.1);
       riskLevel = 'medium';
     } else {
       prediction = 'negative';
@@ -40,13 +101,19 @@ const performMLPrediction = async (data, type) => {
   return {
     prediction,
     confidence: Math.min(confidence, 0.95),
-    probability: confidence,
+    probability: Math.min(riskScore, 1.0),
     riskLevel,
+    riskScore: riskScore,
     details: {
-      message: `Based on the provided data, the prediction is ${prediction}`,
+      message: `Based on the provided hormonal markers, the PCOS risk is ${riskLevel}`,
       factors: type === 'tabular' || type === 'multimodal' ? 
-        ['BMI', 'Menstrual cycle regularity', 'Physical symptoms'] : 
-        ['Image analysis'],
+        ['β-hCG I levels', 'β-hCG II levels', 'AMH (Anti-Müllerian Hormone)'] : 
+        ['Ultrasound image analysis'],
+      values: {
+        beta_hcg_i: data.beta_hcg_i,
+        beta_hcg_ii: data.beta_hcg_ii,
+        amh: data.amh,
+      }
     },
   };
 };
@@ -101,12 +168,61 @@ const generateRecommendations = (prediction, inputData) => {
   return recommendations;
 };
 
+// Validate input data
+const validatePredictionInput = (data) => {
+  const errors = [];
+  
+  // Required fields
+  if (!data.beta_hcg_i) errors.push('beta_hcg_i is required');
+  if (!data.beta_hcg_ii) errors.push('beta_hcg_ii is required');
+  if (!data.amh) errors.push('amh is required');
+  
+  // Type validation
+  if (data.beta_hcg_i && typeof data.beta_hcg_i !== 'number') {
+    errors.push('beta_hcg_i must be a number');
+  }
+  if (data.beta_hcg_ii && typeof data.beta_hcg_ii !== 'number') {
+    errors.push('beta_hcg_ii must be a number');
+  }
+  if (data.amh && typeof data.amh !== 'number') {
+    errors.push('amh must be a number');
+  }
+  
+  // Range validation
+  if (data.beta_hcg_i && (data.beta_hcg_i < 0.1 || data.beta_hcg_i > 10000.0)) {
+    errors.push('beta_hcg_i must be between 0.1 and 10000.0 mIU/mL');
+  }
+  if (data.beta_hcg_ii && (data.beta_hcg_ii < 0.1 || data.beta_hcg_ii > 10000.0)) {
+    errors.push('beta_hcg_ii must be between 0.1 and 10000.0 mIU/mL');
+  }
+  if (data.amh && (data.amh < 0.1 || data.amh > 20.0)) {
+    errors.push('amh must be between 0.1 and 20.0 ng/mL');
+  }
+  
+  return errors;
+};
+
 // @desc    Predict using tabular data
 // @route   POST /api/predict/tabular
 // @access  Private
 export const predictTabular = async (req, res) => {
   try {
     const inputData = req.body;
+    
+    // Validate input
+    const validationErrors = validatePredictionInput(inputData);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors
+      });
+    }
+    
+    // Round to 2 decimal places
+    inputData.beta_hcg_i = parseFloat(inputData.beta_hcg_i.toFixed(2));
+    inputData.beta_hcg_ii = parseFloat(inputData.beta_hcg_ii.toFixed(2));
+    inputData.amh = parseFloat(inputData.amh.toFixed(2));
 
     // Create prediction record
     const prediction = await Prediction.create({
@@ -187,9 +303,12 @@ export const predictMultimodal = async (req, res) => {
   try {
     const inputData = { ...req.body };
 
-    if (req.file) {
-      inputData.imageUrl = `/uploads/${req.file.filename}`;
-      inputData.imagePath = req.file.path;
+    // Handle both single file and multiple fields
+    const imageFile = req.file || req.files?.image?.[0] || req.files?.ultrasound_image?.[0];
+    
+    if (imageFile) {
+      inputData.imageUrl = `/uploads/${imageFile.filename}`;
+      inputData.imagePath = imageFile.path;
     }
 
     // Create prediction record

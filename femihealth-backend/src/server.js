@@ -17,6 +17,7 @@ import connectDB from './config/database.js';
 // Import routes
 import authRoutes from './routes/auth.js';
 import predictRoutes from './routes/predict.js';
+import predictionRoutes from './routes/prediction.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
 import exportRoutes from './routes/export.js';
@@ -78,6 +79,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/predict', predictRoutes);
+app.use('/api/prediction', predictionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/export', exportRoutes);

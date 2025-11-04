@@ -12,7 +12,24 @@ const predictionSchema = new mongoose.Schema({
     required: true,
   },
   inputData: {
-    // Tabular data fields
+    // Primary PCOS indicators (optional - for old 3-feature model)
+    beta_hcg_i: {
+      type: Number,
+      min: [0.1, 'β-hCG I must be at least 0.1 mIU/mL'],
+      max: [10000.0, 'β-hCG I must not exceed 10000.0 mIU/mL']
+    },
+    beta_hcg_ii: {
+      type: Number,
+      min: [0.1, 'β-hCG II must be at least 0.1 mIU/mL'],
+      max: [10000.0, 'β-hCG II must not exceed 10000.0 mIU/mL']
+    },
+    amh: {
+      type: Number,
+      min: [0.1, 'AMH must be at least 0.1 ng/mL'],
+      max: [20.0, 'AMH must not exceed 20.0 ng/mL']
+    },
+    
+    // Optional additional fields
     age: Number,
     weight: Number,
     height: Number,

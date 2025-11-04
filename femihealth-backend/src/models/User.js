@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -38,16 +39,25 @@ const userSchema = new mongoose.Schema({
     enum: ['female', 'male', 'other', 'prefer_not_to_say'],
   },
   address: {
-    street: String,
-    city: String,
-    state: String,
-    zipCode: String,
-    country: String,
+    type: mongoose.Schema.Types.Mixed,
+  },
+  height: {
+    type: Number,
+    min: 0,
+  },
+  weight: {
+    type: Number,
+    min: 0,
   },
   medicalHistory: {
     allergies: [String],
     medications: [String],
     conditions: [String],
+  },
+  emergencyContact: {
+    name: String,
+    phone: String,
+    relationship: String,
   },
   mfaEnabled: {
     type: Boolean,
@@ -57,8 +67,26 @@ const userSchema = new mongoose.Schema({
     type: String,
     select: false,
   },
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+  emailVerified: {
+    type: Boolean,
+    default: false,
+  },
+  emailVerificationToken: {
+    type: String,
+    select: false,
+  },
+  emailVerificationExpire: {
+    type: Date,
+    select: false,
+  },
+  resetPasswordToken: {
+    type: String,
+    select: false,
+  },
+  resetPasswordExpire: {
+    type: Date,
+    select: false,
+  },
   isActive: {
     type: Boolean,
     default: true,
@@ -87,6 +115,22 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Generate email verification token
+userSchema.methods.generateEmailVerificationToken = function() {
+  const token = crypto.randomBytes(32).toString('hex');
+  this.emailVerificationToken = crypto.createHash('sha256').update(token).digest('hex');
+  this.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  return token;
+};
+
+// Generate password reset token
+userSchema.methods.generateResetPasswordToken = function() {
+  const token = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto.createHash('sha256').update(token).digest('hex');
+  this.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
+  return token;
+};
+
 // Get user without sensitive data
 userSchema.methods.toJSON = function() {
   const user = this.toObject();
@@ -94,6 +138,8 @@ userSchema.methods.toJSON = function() {
   delete user.mfaSecret;
   delete user.resetPasswordToken;
   delete user.resetPasswordExpire;
+  delete user.emailVerificationToken;
+  delete user.emailVerificationExpire;
   return user;
 };
 

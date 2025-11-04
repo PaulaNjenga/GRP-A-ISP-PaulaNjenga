@@ -16,7 +16,10 @@ router.use(protect);
 
 router.post('/tabular', predictTabular);
 router.post('/image', upload.single('image'), predictImage);
-router.post('/multimodal', upload.single('image'), predictMultimodal);
+router.post('/multimodal', upload.fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'ultrasound_image', maxCount: 1 }
+]), predictMultimodal);
 router.get('/result/:id', getResult);
 router.get('/history', getHistory);
 

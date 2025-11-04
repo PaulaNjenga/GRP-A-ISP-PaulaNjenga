@@ -7,8 +7,11 @@ import {
   verifyToken,
   setupMFA,
   verifyMFA,
+  forgotPassword,
   resetPassword,
   changePassword,
+  verifyEmail,
+  resendVerification,
 } from '../controllers/authController.js';
 import { protect } from '../middleware/auth.js';
 
@@ -35,7 +38,9 @@ const loginValidation = [
 // Public routes
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
-router.post('/reset-password', resetPassword);
+router.post('/forgot-password', [body('email').isEmail()], forgotPassword);
+router.post('/reset-password/:token', [body('password').isLength({ min: 6 })], resetPassword);
+router.get('/verify-email/:token', verifyEmail);
 
 // Protected routes
 router.use(protect);
@@ -44,5 +49,6 @@ router.get('/verify', verifyToken);
 router.post('/mfa/setup', setupMFA);
 router.post('/mfa/verify', verifyMFA);
 router.post('/change-password', changePassword);
+router.post('/resend-verification', resendVerification);
 
 export default router;
