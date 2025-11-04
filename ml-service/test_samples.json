@@ -1,0 +1,100 @@
+{
+  "test_cases": [
+    {
+      "name": "High Risk PCOS Case",
+      "description": "28-year-old with multiple PCOS symptoms",
+      "clinical": {
+        "Age (yrs)": 28,
+        "Weight (Kg)": 78,
+        "Height(Cm)": 162,
+        "Cycle length(days)": 45,
+        "Weight gain(Y/N)": 1,
+        "hair growth(Y/N)": 1,
+        "Skin darkening (Y/N)": 1,
+        "Pimples(Y/N)": 1,
+        "Fast food (Y/N)": 1,
+        "Reg.Exercise(Y/N)": 0
+      },
+      "expected_risk": "HIGH"
+    },
+    {
+      "name": "Medium Risk PCOS Case",
+      "description": "25-year-old with some PCOS indicators",
+      "clinical": {
+        "Age (yrs)": 25,
+        "Weight (Kg)": 68,
+        "Height(Cm)": 165,
+        "Cycle length(days)": 35,
+        "Weight gain(Y/N)": 1,
+        "hair growth(Y/N)": 1,
+        "Skin darkening (Y/N)": 0,
+        "Pimples(Y/N)": 1,
+        "Fast food (Y/N)": 0,
+        "Reg.Exercise(Y/N)": 1
+      },
+      "expected_risk": "MEDIUM"
+    },
+    {
+      "name": "Low Risk Healthy Case",
+      "description": "30-year-old with regular cycles and healthy lifestyle",
+      "clinical": {
+        "Age (yrs)": 30,
+        "Weight (Kg)": 60,
+        "Height(Cm)": 168,
+        "Cycle length(days)": 28,
+        "Weight gain(Y/N)": 0,
+        "hair growth(Y/N)": 0,
+        "Skin darkening (Y/N)": 0,
+        "Pimples(Y/N)": 0,
+        "Fast food (Y/N)": 0,
+        "Reg.Exercise(Y/N)": 1
+      },
+      "expected_risk": "LOW"
+    },
+    {
+      "name": "Borderline Case",
+      "description": "32-year-old with irregular cycles but healthy weight",
+      "clinical": {
+        "Age (yrs)": 32,
+        "Weight (Kg)": 65,
+        "Height(Cm)": 170,
+        "Cycle length(days)": 38,
+        "Weight gain(Y/N)": 0,
+        "hair growth(Y/N)": 1,
+        "Skin darkening (Y/N)": 0,
+        "Pimples(Y/N)": 0,
+        "Fast food (Y/N)": 0,
+        "Reg.Exercise(Y/N)": 1
+      },
+      "expected_risk": "MEDIUM"
+    },
+    {
+      "name": "Young High Risk",
+      "description": "22-year-old with severe symptoms",
+      "clinical": {
+        "Age (yrs)": 22,
+        "Weight (Kg)": 85,
+        "Height(Cm)": 158,
+        "Cycle length(days)": 50,
+        "Weight gain(Y/N)": 1,
+        "hair growth(Y/N)": 1,
+        "Skin darkening (Y/N)": 1,
+        "Pimples(Y/N)": 1,
+        "Fast food (Y/N)": 1,
+        "Reg.Exercise(Y/N)": 0
+      },
+      "expected_risk": "HIGH"
+    }
+  ],
+  "curl_examples": [
+    {
+      "name": "Test High Risk Case",
+      "command": "curl -X POST http://localhost:5001/predict -H 'Content-Type: application/json' -d '{\"clinical\": {\"Age (yrs)\": 28, \"Weight (Kg)\": 78, \"Height(Cm)\": 162, \"Cycle length(days)\": 45, \"Weight gain(Y/N)\": 1, \"hair growth(Y/N)\": 1, \"Skin darkening (Y/N)\": 1, \"Pimples(Y/N)\": 1, \"Fast food (Y/N)\": 1, \"Reg.Exercise(Y/N)\": 0}}'"
+    },
+    {
+      "name": "Test Low Risk Case",
+      "command": "curl -X POST http://localhost:5001/predict -H 'Content-Type: application/json' -d '{\"clinical\": {\"Age (yrs)\": 30, \"Weight (Kg)\": 60, \"Height(Cm)\": 168, \"Cycle length(days)\": 28, \"Weight gain(Y/N)\": 0, \"hair growth(Y/N)\": 0, \"Skin darkening (Y/N)\": 0, \"Pimples(Y/N)\": 0, \"Fast food (Y/N)\": 0, \"Reg.Exercise(Y/N)\": 1}}'"
+    }
+  ],
+  "python_test_script": "import requests\nimport json\n\nurl = 'http://localhost:5001/predict'\n\ntest_cases = [\n    {\n        'name': 'High Risk',\n        'clinical': {\n            'Age (yrs)': 28,\n            'Weight (Kg)': 78,\n            'Height(Cm)': 162,\n            'Cycle length(days)': 45,\n            'Weight gain(Y/N)': 1,\n            'hair growth(Y/N)': 1,\n            'Skin darkening (Y/N)': 1,\n            'Pimples(Y/N)': 1,\n            'Fast food (Y/N)': 1,\n            'Reg.Exercise(Y/N)': 0\n        }\n    },\n    {\n        'name': 'Low Risk',\n        'clinical': {\n            'Age (yrs)': 30,\n            'Weight (Kg)': 60,\n            'Height(Cm)': 168,\n            'Cycle length(days)': 28,\n            'Weight gain(Y/N)': 0,\n            'hair growth(Y/N)': 0,\n            'Skin darkening (Y/N)': 0,\n            'Pimples(Y/N)': 0,\n            'Fast food (Y/N)': 0,\n            'Reg.Exercise(Y/N)': 1\n        }\n    }\n]\n\nfor test in test_cases:\n    print(f\"\\nTesting: {test['name']}\")\n    response = requests.post(url, json={'clinical': test['clinical']})\n    result = response.json()\n    print(f\"Risk Level: {result['risk_level']}\")\n    print(f\"Probability: {result['pcos_risk_probability']:.3f}\")\n    print(f\"Prediction: {result['prediction']}\")"
+}
