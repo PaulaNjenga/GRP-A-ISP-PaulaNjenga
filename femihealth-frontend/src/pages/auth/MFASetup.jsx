@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { Heart, AlertCircle, Check, Copy, Smartphone } from 'lucide-react'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import QRCode from 'qrcode'
 
 const MFASetup = () => {
   const [step, setStep] = useState(1)
@@ -28,18 +27,17 @@ const MFASetup = () => {
   }, [error, clearError])
 
   const initializeMFA = async () => {
+    console.log('🔧 Initializing MFA setup...')
     const result = await setupMFA()
+    console.log('📋 MFA setup result:', result)
+    
     if (result.success) {
-      const { secret, qrCodeUrl } = result.data
+      const { secret, qrCode } = result.data
+      console.log('✅ Got secret and QR code from backend')
       setSecret(secret)
-      
-      // Generate QR code
-      try {
-        const qrUrl = await QRCode.toDataURL(qrCodeUrl)
-        setQrCodeUrl(qrUrl)
-      } catch (err) {
-        console.error('Error generating QR code:', err)
-      }
+      setQrCodeUrl(qrCode) // Backend already provides the data URL
+    } else {
+      console.error('❌ MFA setup failed:', result.error)
     }
   }
 

@@ -7,27 +7,163 @@ import Prediction from '../models/Prediction.js';
 export const getDashboard = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { timeRange = '6months' } = req.query;
 
-    // Get recent predictions
-    const recentPredictions = await Prediction.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select('-inputData.imagePath');
+    const rangeInMonths = {
+      '1month': 1,
+      '3months': 3,
+      '6months': 6,
+      '1year': 12,
+    }[timeRange] || 6;
 
-    // Get statistics
-    const totalPredictions = await Prediction.countDocuments({ user: userId });
-    const positivePredictions = await Prediction.countDocuments({
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - rangeInMonths);
+
+    const [recentPredictions, totalPredictions, positivePredictions, negativePredictions, latestPrediction] = await Promise.all([
+      Prediction.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Prediction.countDocuments({ user: userId }),
+      Prediction.countDocuments({ user: userId, 'result.prediction': 'positive' }),
+      Prediction.countDocuments({ user: userId, 'result.prediction': 'negative' }),
+      Prediction.findOne({ user: userId }).sort({ createdAt: -1 }),
+    ]);
+
+    const timeframePredictions = await Prediction.find({
       user: userId,
-      'result.prediction': 'positive',
-    });
-    const negativePredictions = await Prediction.countDocuments({
-      user: userId,
-      'result.prediction': 'negative',
+      createdAt: { $gte: startDate },
+    }).sort({ createdAt: 1 });
+
+    const allPredictions = timeframePredictions.length > 0 ? timeframePredictions : recentPredictions.slice().reverse();
+
+    const riskLevelToValue = (riskLevel) => {
+      switch (riskLevel) {
+        case 'low':
+          return 0.2;
+        case 'medium':
+        case 'moderate':
+          return 0.5;
+        case 'high':
+          return 0.8;
+        default:
+          return 0.0;
+      }
+    };
+
+    const getRiskValue = (prediction) => {
+      if (!prediction || !prediction.result) {
+        return 0;
+      }
+
+      if (typeof prediction.result.probability === 'number') {
+        return Math.min(Math.max(prediction.result.probability, 0), 1);
+      }
+
+      if (typeof prediction.result.confidence === 'number') {
+        return Math.min(Math.max(prediction.result.confidence, 0), 1);
+      }
+
+      if (prediction.result.riskLevel) {
+        return riskLevelToValue(prediction.result.riskLevel);
+      }
+
+      if (prediction.result.prediction) {
+        if (prediction.result.prediction === 'positive') return 0.75;
+        if (prediction.result.prediction === 'negative') return 0.25;
+        return 0.5;
+      }
+
+      return 0;
+    };
+
+    const riskTrend = allPredictions.map((prediction) => ({
+      date: prediction.createdAt,
+      risk: getRiskValue(prediction),
+    }));
+
+    let trendDirection = 'steady';
+    let trendChange = 0;
+    if (riskTrend.length >= 2) {
+      const firstRisk = riskTrend[0].risk;
+      const lastRisk = riskTrend[riskTrend.length - 1].risk;
+      trendChange = (lastRisk - firstRisk) * 100;
+      if (trendChange > 1) trendDirection = 'up';
+      else if (trendChange < -1) trendDirection = 'down';
+    }
+
+    const daysSinceLastAssessment = latestPrediction
+      ? Math.floor((Date.now() - latestPrediction.createdAt.getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+
+    const latestRisk = getRiskValue(latestPrediction);
+
+    const riskDistribution = { low: 0, moderate: 0, high: 0 };
+    const distributionPredictions = timeframePredictions.length > 0 ? timeframePredictions : await Prediction.find({ user: userId });
+    distributionPredictions.forEach((prediction) => {
+      const risk = getRiskValue(prediction);
+      if (risk < 0.33) riskDistribution.low += 1;
+      else if (risk < 0.66) riskDistribution.moderate += 1;
+      else riskDistribution.high += 1;
     });
 
-    // Get latest prediction
-    const latestPrediction = await Prediction.findOne({ user: userId })
-      .sort({ createdAt: -1 });
+    const symptomFields = [
+      { key: 'weightGain', label: 'Weight Gain' },
+      { key: 'hairGrowth', label: 'Excess Hair Growth' },
+      { key: 'skinDarkening', label: 'Skin Darkening' },
+      { key: 'hairLoss', label: 'Hair Loss' },
+      { key: 'pimples', label: 'Acne & Pimples' },
+      { key: 'fastFood', label: 'Frequent Fast Food' },
+      { key: 'exercise', label: 'Lack of Exercise' },
+    ];
+
+    const symptomFrequencyMap = new Map();
+    (distributionPredictions.length > 0 ? distributionPredictions : recentPredictions).forEach((prediction) => {
+      symptomFields.forEach(({ key, label }) => {
+        const value = prediction.inputData?.[key];
+        if (typeof value === 'boolean' && value) {
+          symptomFrequencyMap.set(label, (symptomFrequencyMap.get(label) || 0) + 1);
+        }
+      });
+    });
+
+    const symptomFrequency = Array.from(symptomFrequencyMap.entries())
+      .map(([symptom, count]) => ({ symptom, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const recentAssessments = recentPredictions.map((prediction) => ({
+      id: prediction._id,
+      risk: getRiskValue(prediction),
+      riskLevel: prediction.result?.riskLevel || null,
+      prediction: prediction.result?.prediction || null,
+      confidence: prediction.result?.confidence ?? null,
+      date: prediction.createdAt,
+      hasImage: Boolean(prediction.inputData?.imageUrl || prediction.inputData?.imagePath),
+    }));
+
+    const insights = [];
+    const timeframePositiveCount = allPredictions.filter((p) => p.result?.prediction === 'positive').length;
+    if (allPredictions.length > 0 && timeframePositiveCount > allPredictions.length / 2) {
+      insights.push({
+        type: 'warning',
+        title: 'Consistent Risk Indicators',
+        description: 'Your recent predictions show elevated PCOS risk levels. Consider consulting a healthcare provider.',
+      });
+    }
+
+    const lifestyleFlags = allPredictions.some((p) => p.inputData?.fastFood || p.inputData?.exercise === false);
+    if (lifestyleFlags) {
+      insights.push({
+        type: 'info',
+        title: 'Lifestyle Adjustment Opportunity',
+        description: 'Reducing fast food intake and increasing regular exercise may improve your assessment outcomes.',
+      });
+    }
+
+    insights.push({
+      type: 'success',
+      title: 'Keep Tracking',
+      description: 'Regular assessments help build better trend insights. Continue monitoring consistently.',
+    });
 
     res.json({
       success: true,
@@ -37,6 +173,19 @@ export const getDashboard = async (req, res) => {
           email: req.user.email,
           role: req.user.role,
         },
+        stats: {
+          totalAssessments: totalPredictions,
+          latestRisk,
+          trendDirection,
+          trendChange,
+          daysSinceLastAssessment,
+        },
+        riskTrend,
+        riskDistribution,
+        symptomFrequency,
+        recentAssessments,
+        insights,
+        // Legacy fields kept for backwards compatibility
         statistics: {
           totalPredictions,
           positivePredictions,

@@ -24,6 +24,10 @@ export const protect = async (req, res, next) => {
         return res.status(401).json({ message: 'User account is deactivated' });
       }
 
+      // MFA is only enforced during login flow, not for general API access
+      // Once a user has a valid token, they can access protected routes
+      // MFA verification happens during login and token generation
+
       next();
     } catch (error) {
       console.error(error);
@@ -54,8 +58,8 @@ export const authorize = (...roles) => {
 };
 
 // Generate JWT token
-export const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+export const generateToken = (id, payload = {}) => {
+  return jwt.sign({ id, ...payload }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
 };

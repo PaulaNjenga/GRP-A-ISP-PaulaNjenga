@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { doctorAPI } from '../services/api';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const DoctorDashboard = () => {
@@ -9,6 +10,7 @@ const DoctorDashboard = () => {
   const [patients, setPatients] = useState([]);
   const [recentDiagnoses, setRecentDiagnoses] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchDoctorData();
@@ -17,32 +19,31 @@ const DoctorDashboard = () => {
   const fetchDoctorData = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      setError('');
       
-      // Fetch doctor stats
-      const statsResponse = await fetch('/api/doctor/stats', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const statsData = await statsResponse.json();
+      const [statsResponse, patientsResponse, diagnosesResponse] = await Promise.all([
+        doctorAPI.getStats(),
+        doctorAPI.getPatients(),
+        doctorAPI.getDiagnoses(1, 5)
+      ]);
       
-      // Fetch patients
-      const patientsResponse = await fetch('/api/doctor/patients', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const patientsData = await patientsResponse.json();
+      console.log('Doctor stats:', statsResponse);
+      console.log('Patients:', patientsResponse);
+      console.log('Diagnoses:', diagnosesResponse);
       
-      // Fetch recent diagnoses
-      const diagnosesResponse = await fetch('/api/doctor/diagnoses?limit=5', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const diagnosesData = await diagnosesResponse.json();
-      
-      if (statsData.success) setStats(statsData.stats);
-      if (patientsData.success) setPatients(patientsData.patients);
-      if (diagnosesData.success) setRecentDiagnoses(diagnosesData.diagnoses);
+      if (statsResponse.data?.success) {
+        setStats(statsResponse.data.stats);
+      }
+      if (patientsResponse.data?.success) {
+        setPatients(patientsResponse.data.patients || []);
+      }
+      if (diagnosesResponse.data?.success) {
+        setRecentDiagnoses(diagnosesResponse.data.diagnoses || []);
+      }
       
     } catch (error) {
       console.error('Error fetching doctor data:', error);
+      setError('Failed to load doctor dashboard data');
     } finally {
       setLoading(false);
     }
@@ -50,16 +51,30 @@ const DoctorDashboard = () => {
 
   if (loading) return <LoadingSpinner />;
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button onClick={fetchDoctorData} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">
-            Welcome, {user?.firstName} {user?.lastName}
+            Welcome, Dr. {user?.name || 'Doctor'}
           </h1>
           <p className="text-gray-600 mt-2">
-            {user?.specialization} • {user?.hospital}
+            Doctor Dashboard
           </p>
         </div>
 
@@ -166,33 +181,42 @@ const DoctorDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => (
-                    <tr key={patient.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {patient.anonymousId}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.ageGroup}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(patient.lastVisit).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.totalVisits}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          patient.riskLevel < 0.3 
-                            ? 'bg-green-100 text-green-800'
-                            : patient.riskLevel < 0.7
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {patient.riskLevel < 0.3 ? 'Low' : patient.riskLevel < 0.7 ? 'Moderate' : 'High'}
-                        </span>
+                  {patients.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" className="px-6 py-12 text-center text-gray-500">
+                        <p className="text-lg">No patients found</p>
+                        <p className="text-sm mt-2">Review predictions to add patients to your list</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    patients.map((patient) => (
+                      <tr key={patient.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {patient.anonymousId}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {patient.ageGroup}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(patient.lastVisit).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {patient.totalVisits}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            patient.riskLevel < 0.3 
+                              ? 'bg-green-100 text-green-800'
+                              : patient.riskLevel < 0.7
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {patient.riskLevel < 0.3 ? 'Low' : patient.riskLevel < 0.7 ? 'Moderate' : 'High'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -206,40 +230,47 @@ const DoctorDashboard = () => {
               <h3 className="text-lg font-medium text-gray-900">Recent Diagnoses</h3>
             </div>
             <div className="p-6">
-              <div className="space-y-4">
-                {recentDiagnoses.map((diagnosis) => (
-                  <div key={diagnosis.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium text-gray-900">
-                          Patient: {diagnosis.patient?.anonymousId}
-                        </h4>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {diagnosis.diagnosis || 'No diagnosis recorded'}
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Risk: {(diagnosis.risk * 100).toFixed(1)}% • 
-                          Confidence: {(diagnosis.confidence * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500">
-                          {new Date(diagnosis.createdAt).toLocaleDateString()}
-                        </p>
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
-                          diagnosis.risk < 0.3 
-                            ? 'bg-green-100 text-green-800'
-                            : diagnosis.risk < 0.7
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {diagnosis.risk < 0.3 ? 'Low Risk' : diagnosis.risk < 0.7 ? 'Moderate Risk' : 'High Risk'}
-                        </span>
+              {recentDiagnoses.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-lg">No diagnoses found</p>
+                  <p className="text-sm mt-2">Review predictions to create diagnoses</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recentDiagnoses.map((diagnosis) => (
+                    <div key={diagnosis.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium text-gray-900">
+                            Patient: {diagnosis.patient?.anonymousId}
+                          </h4>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {diagnosis.diagnosis || 'No diagnosis recorded'}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-2">
+                            Risk: {(diagnosis.risk * 100).toFixed(1)}% • 
+                            Confidence: {(diagnosis.confidence * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">
+                            {new Date(diagnosis.createdAt).toLocaleDateString()}
+                          </p>
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
+                            diagnosis.risk < 0.3 
+                              ? 'bg-green-100 text-green-800'
+                              : diagnosis.risk < 0.7
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {diagnosis.risk < 0.3 ? 'Low Risk' : diagnosis.risk < 0.7 ? 'Moderate Risk' : 'High Risk'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

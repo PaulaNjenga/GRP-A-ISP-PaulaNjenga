@@ -22,7 +22,7 @@ const Navbar = () => {
       { path: '/education', label: 'Learn', public: true },
     ]
 
-    if (user?.role === 'patient') {
+    if (user?.role === 'user') {
       return [
         ...baseLinks,
         { path: '/dashboard', label: 'Dashboard', protected: true },
@@ -42,6 +42,14 @@ const Navbar = () => {
       return [
         ...baseLinks,
         { path: '/admin', label: 'Admin Panel', protected: true },
+      ]
+    }
+
+    // Default links for any authenticated user
+    if (user) {
+      return [
+        ...baseLinks,
+        { path: '/dashboard', label: 'Dashboard', protected: true },
       ]
     }
 
@@ -91,12 +99,19 @@ const Navbar = () => {
               <div className="relative group">
                 <button className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50 transition-colors duration-200">
                   <User className="h-4 w-4" />
-                  <span>{user.firstName || user.email}</span>
+                  <span>{user.name || user.email}</span>
                 </button>
                 
                 {/* Dropdown Menu */}
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                   <div className="py-1">
+                    <Link
+                      to="/dashboard"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Heart className="h-4 w-4 mr-2" />
+                      Dashboard
+                    </Link>
                     <Link
                       to="/profile"
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -196,8 +211,15 @@ const Navbar = () => {
                 {user ? (
                   <div className="space-y-1">
                     <div className="px-3 py-2 text-sm text-gray-500">
-                      Signed in as {user.firstName || user.email}
+                      Signed in as {user.name || user.email}
                     </div>
+                    <Link
+                      to="/dashboard"
+                      onClick={() => setIsMenuOpen(false)}
+                      className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-primary-600 hover:bg-gray-50"
+                    >
+                      Dashboard
+                    </Link>
                     <Link
                       to="/profile"
                       onClick={() => setIsMenuOpen(false)}

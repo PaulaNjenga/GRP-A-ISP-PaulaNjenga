@@ -11,6 +11,7 @@ const SimplePredictionForm = () => {
     amh: ''
   });
   const [result, setResult] = useState(null);
+  const [predictionId, setPredictionId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -38,15 +39,27 @@ const SimplePredictionForm = () => {
       };
 
       const response = await predictionAPI.predictTabular(data);
+      console.log('Prediction response:', response);
       
-      if (response.success) {
-        setResult(response.prediction);
+      // Handle nested response structure
+      const responseData = response.data || response;
+      
+      if (responseData.success) {
+        setResult(responseData.prediction);
+        setPredictionId(responseData.predictionId || responseData.prediction?._id);
       } else {
-        setError('Prediction failed. Please try again.');
+        setError(responseData.message || 'Prediction failed. Please try again.');
       }
     } catch (err) {
       console.error('Prediction error:', err);
-      setError(err.response?.data?.message || 'Failed to get prediction. Please try again.');
+      console.error('Error response:', err.response?.data);
+      
+      // Handle validation errors
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        setError(err.response.data.errors.join(', '));
+      } else {
+        setError(err.response?.data?.message || 'Failed to get prediction. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -285,15 +298,24 @@ const SimplePredictionForm = () => {
               <button
                 onClick={() => {
                   setResult(null);
+                  setPredictionId(null);
                   setFormData({ beta_hcg_i: '', beta_hcg_ii: '', amh: '' });
                 }}
                 className="flex-1 bg-white border-2 border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-50 transition-all"
               >
                 New Assessment
               </button>
+              {predictionId && (
+                <button
+                  onClick={() => navigate(`/results/${predictionId}`)}
+                  className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 px-6 rounded-lg font-medium hover:from-pink-600 hover:to-purple-700 transition-all"
+                >
+                  View Detailed Results
+                </button>
+              )}
               <button
                 onClick={() => navigate('/dashboard')}
-                className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 px-6 rounded-lg font-medium hover:from-pink-600 hover:to-purple-700 transition-all"
+                className="flex-1 bg-gradient-to-r from-indigo-500 to-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:from-indigo-600 hover:to-blue-700 transition-all"
               >
                 View History
               </button>

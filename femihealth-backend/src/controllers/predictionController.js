@@ -118,6 +118,100 @@ const performMockPrediction = async (data, type) => {
   };
 };
 
+// Generate risk factors analysis
+const generateRiskFactors = (inputData, prediction) => {
+  const riskFactors = [];
+
+  // AMH levels contribution
+  if (inputData.amh) {
+    let contribution = 0;
+    if (inputData.amh > 4.0) {
+      contribution = 35;
+    } else if (inputData.amh > 3.0) {
+      contribution = 20;
+    } else {
+      contribution = 5;
+    }
+    riskFactors.push({
+      name: 'AMH Levels',
+      contribution,
+      value: `${inputData.amh} ng/mL`,
+      status: inputData.amh > 4.0 ? 'high' : inputData.amh > 3.0 ? 'moderate' : 'normal'
+    });
+  }
+
+  // β-hCG patterns contribution
+  if (inputData.beta_hcg_i && inputData.beta_hcg_ii) {
+    const hcgRatio = inputData.beta_hcg_ii / inputData.beta_hcg_i;
+    let contribution = 0;
+    if (hcgRatio < 1.5 || hcgRatio > 3.0) {
+      contribution = 25;
+    } else if (inputData.beta_hcg_i > 100 || inputData.beta_hcg_ii > 200) {
+      contribution = 15;
+    } else {
+      contribution = 5;
+    }
+    riskFactors.push({
+      name: 'β-hCG Patterns',
+      contribution,
+      value: `Ratio: ${hcgRatio.toFixed(2)}`,
+      status: (hcgRatio < 1.5 || hcgRatio > 3.0) ? 'abnormal' : 'normal'
+    });
+  }
+
+  // BMI contribution
+  if (inputData.bmi) {
+    let contribution = 0;
+    if (inputData.bmi > 30) {
+      contribution = 20;
+    } else if (inputData.bmi > 25) {
+      contribution = 10;
+    } else {
+      contribution = 0;
+    }
+    riskFactors.push({
+      name: 'Body Mass Index',
+      contribution,
+      value: inputData.bmi.toFixed(1),
+      status: inputData.bmi > 30 ? 'high' : inputData.bmi > 25 ? 'moderate' : 'normal'
+    });
+  }
+
+  // Lifestyle factors
+  if (inputData.exercise !== undefined || inputData.fastFood !== undefined) {
+    let contribution = 0;
+    if (inputData.exercise === false) contribution += 5;
+    if (inputData.fastFood === true) contribution += 5;
+    
+    if (contribution > 0) {
+      riskFactors.push({
+        name: 'Lifestyle Factors',
+        contribution,
+        value: 'Sedentary lifestyle',
+        status: 'moderate'
+      });
+    }
+  }
+
+  // Symptoms contribution
+  if (inputData.hairGrowth || inputData.skinDarkening || inputData.pimples) {
+    let symptomCount = 0;
+    if (inputData.hairGrowth) symptomCount++;
+    if (inputData.skinDarkening) symptomCount++;
+    if (inputData.pimples) symptomCount++;
+    
+    const contribution = symptomCount * 5;
+    riskFactors.push({
+      name: 'PCOS Symptoms',
+      contribution,
+      value: `${symptomCount} symptoms present`,
+      status: symptomCount > 1 ? 'moderate' : 'low'
+    });
+  }
+
+  return riskFactors;
+};
+
 // Generate recommendations based on prediction
 const generateRecommendations = (prediction, inputData) => {
   const recommendations = [];
@@ -172,31 +266,40 @@ const generateRecommendations = (prediction, inputData) => {
 const validatePredictionInput = (data) => {
   const errors = [];
   
-  // Required fields
-  if (!data.beta_hcg_i) errors.push('beta_hcg_i is required');
-  if (!data.beta_hcg_ii) errors.push('beta_hcg_ii is required');
-  if (!data.amh) errors.push('amh is required');
+  // Check if we have the minimal required fields (3-feature model)
+  const hasMinimalData = data.beta_hcg_i && data.beta_hcg_ii && data.amh;
   
-  // Type validation
-  if (data.beta_hcg_i && typeof data.beta_hcg_i !== 'number') {
-    errors.push('beta_hcg_i must be a number');
-  }
-  if (data.beta_hcg_ii && typeof data.beta_hcg_ii !== 'number') {
-    errors.push('beta_hcg_ii must be a number');
-  }
-  if (data.amh && typeof data.amh !== 'number') {
-    errors.push('amh must be a number');
+  // Check if we have comprehensive data (alternative model)
+  const hasComprehensiveData = data.age || data.weight || data.height || data.cycle_length;
+  
+  // At least one set of data must be provided
+  if (!hasMinimalData && !hasComprehensiveData) {
+    errors.push('Either provide beta_hcg_i, beta_hcg_ii, and amh OR comprehensive health data');
   }
   
-  // Range validation
-  if (data.beta_hcg_i && (data.beta_hcg_i < 0.1 || data.beta_hcg_i > 10000.0)) {
-    errors.push('beta_hcg_i must be between 0.1 and 10000.0 mIU/mL');
-  }
-  if (data.beta_hcg_ii && (data.beta_hcg_ii < 0.1 || data.beta_hcg_ii > 10000.0)) {
-    errors.push('beta_hcg_ii must be between 0.1 and 10000.0 mIU/mL');
-  }
-  if (data.amh && (data.amh < 0.1 || data.amh > 20.0)) {
-    errors.push('amh must be between 0.1 and 20.0 ng/mL');
+  // If minimal data is provided, validate it
+  if (hasMinimalData) {
+    // Type validation
+    if (typeof data.beta_hcg_i !== 'number') {
+      errors.push('beta_hcg_i must be a number');
+    }
+    if (typeof data.beta_hcg_ii !== 'number') {
+      errors.push('beta_hcg_ii must be a number');
+    }
+    if (typeof data.amh !== 'number') {
+      errors.push('amh must be a number');
+    }
+    
+    // Range validation
+    if (data.beta_hcg_i < 0.1 || data.beta_hcg_i > 10000.0) {
+      errors.push('beta_hcg_i must be between 0.1 and 10000.0 mIU/mL');
+    }
+    if (data.beta_hcg_ii < 0.1 || data.beta_hcg_ii > 10000.0) {
+      errors.push('beta_hcg_ii must be between 0.1 and 10000.0 mIU/mL');
+    }
+    if (data.amh < 0.1 || data.amh > 20.0) {
+      errors.push('amh must be between 0.1 and 20.0 ng/mL');
+    }
   }
   
   return errors;
@@ -219,10 +322,16 @@ export const predictTabular = async (req, res) => {
       });
     }
     
-    // Round to 2 decimal places
-    inputData.beta_hcg_i = parseFloat(inputData.beta_hcg_i.toFixed(2));
-    inputData.beta_hcg_ii = parseFloat(inputData.beta_hcg_ii.toFixed(2));
-    inputData.amh = parseFloat(inputData.amh.toFixed(2));
+    // Round hormonal markers to 2 decimal places if they exist
+    if (inputData.beta_hcg_i) {
+      inputData.beta_hcg_i = parseFloat(inputData.beta_hcg_i.toFixed(2));
+    }
+    if (inputData.beta_hcg_ii) {
+      inputData.beta_hcg_ii = parseFloat(inputData.beta_hcg_ii.toFixed(2));
+    }
+    if (inputData.amh) {
+      inputData.amh = parseFloat(inputData.amh.toFixed(2));
+    }
 
     // Create prediction record
     const prediction = await Prediction.create({
@@ -235,10 +344,12 @@ export const predictTabular = async (req, res) => {
     // Perform ML prediction
     const result = await performMLPrediction(inputData, 'tabular');
     const recommendations = generateRecommendations(result, inputData);
+    const riskFactors = generateRiskFactors(inputData, result);
 
     // Update prediction with results
     prediction.result = result;
     prediction.recommendations = recommendations;
+    prediction.riskFactors = riskFactors;
     prediction.status = 'completed';
     prediction.processedAt = new Date();
     await prediction.save();
@@ -246,6 +357,7 @@ export const predictTabular = async (req, res) => {
     res.json({
       success: true,
       prediction: prediction,
+      predictionId: prediction._id,
     });
   } catch (error) {
     console.error(error);
@@ -278,10 +390,12 @@ export const predictImage = async (req, res) => {
     // Perform ML prediction
     const result = await performMLPrediction(inputData, 'image');
     const recommendations = generateRecommendations(result, inputData);
+    const riskFactors = generateRiskFactors(inputData, result);
 
     // Update prediction with results
     prediction.result = result;
     prediction.recommendations = recommendations;
+    prediction.riskFactors = riskFactors;
     prediction.status = 'completed';
     prediction.processedAt = new Date();
     await prediction.save();
@@ -289,6 +403,7 @@ export const predictImage = async (req, res) => {
     res.json({
       success: true,
       prediction: prediction,
+      predictionId: prediction._id,
     });
   } catch (error) {
     console.error(error);
@@ -322,10 +437,12 @@ export const predictMultimodal = async (req, res) => {
     // Perform ML prediction
     const result = await performMLPrediction(inputData, 'multimodal');
     const recommendations = generateRecommendations(result, inputData);
+    const riskFactors = generateRiskFactors(inputData, result);
 
     // Update prediction with results
     prediction.result = result;
     prediction.recommendations = recommendations;
+    prediction.riskFactors = riskFactors;
     prediction.status = 'completed';
     prediction.processedAt = new Date();
     await prediction.save();
@@ -333,6 +450,7 @@ export const predictMultimodal = async (req, res) => {
     res.json({
       success: true,
       prediction: prediction,
+      predictionId: prediction._id,
     });
   } catch (error) {
     console.error(error);
@@ -363,11 +481,16 @@ export const getResult = async (req, res) => {
 
     res.json({
       success: true,
-      prediction,
+      data: prediction,
+      prediction, // Keep for backward compatibility
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Error in getResult:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 };
 

@@ -50,13 +50,14 @@ const ProtectedRoute = ({ children, adminOnly = false, doctorOnly = false, roles
 
 // Public Route Component (redirect if already authenticated)
 const PublicRoute = ({ children }) => {
-  const { user, loading } = useAuth()
+  const { user, loading, state } = useAuth()
   
   if (loading) {
     return <LoadingSpinner />
   }
   
-  if (user) {
+  // Allow access to login page if MFA is required (user is partially authenticated)
+  if (user && !state?.mfaRequired) {
     return <Navigate to="/dashboard" replace />
   }
   

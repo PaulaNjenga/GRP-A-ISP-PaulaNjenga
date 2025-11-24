@@ -37,13 +37,33 @@ const Results = () => {
     try {
       if (!id) {
         setError('No prediction ID provided')
+        setLoading(false)
         return
       }
+      
+      console.log('Fetching result for ID:', id)
       const response = await predictionAPI.getResult(id)
-      setResult(response.data.data)
+      console.log('Result response:', response)
+      
+      // Handle nested response structure - backend returns { success: true, prediction }
+      const resultData = response.data?.prediction || response.data?.data || response.data
+      
+      if (resultData) {
+        setResult(resultData)
+      } else {
+        setError('No prediction data found')
+      }
     } catch (err) {
       console.error('Results data error:', err)
-      setError('Failed to load prediction results')
+      console.error('Error details:', err.response?.data)
+      
+      if (err.response?.status === 404) {
+        setError('Prediction not found')
+      } else if (err.response?.status === 403) {
+        setError('You do not have permission to view this prediction')
+      } else {
+        setError(err.response?.data?.message || 'Failed to load prediction results')
+      }
     } finally {
       setLoading(false)
     }
@@ -145,7 +165,9 @@ const Results = () => {
     )
   }
 
-  const risk = getRiskLevel(result.probability)
+  // Get probability from nested result structure
+  const probability = result.result?.probability || result.result?.confidence || result.probability || 0
+  const risk = getRiskLevel(probability)
 
   // Chart data for risk factors
   const riskFactorsData = {
@@ -175,7 +197,7 @@ const Results = () => {
   const riskChartData = {
     labels: ['PCOS Risk', 'No Risk'],
     datasets: [{
-      data: [result.probability * 100, (1 - result.probability) * 100],
+      data: [probability * 100, (1 - probability) * 100],
       backgroundColor: [
         risk.color === 'success' ? '#10b981' : risk.color === 'warning' ? '#f59e0b' : '#ef4444',
         '#e5e7eb'
@@ -222,7 +244,7 @@ const Results = () => {
                   {risk.level} Risk
                 </h2>
                 <p className={`text-lg ${risk.textColor}`}>
-                  {(result.probability * 100).toFixed(1)}% probability of PCOS
+                  {(probability * 100).toFixed(1)}% probability of PCOS
                 </p>
               </div>
             </div>

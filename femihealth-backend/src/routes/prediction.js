@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import { protect } from '../middleware/auth.js';
+import Prediction from '../models/Prediction.js';
 
 const router = express.Router();
 
@@ -65,19 +66,37 @@ router.post('/pcos', protect, async (req, res) => {
       }
     );
 
-    // Save prediction to database (optional)
-    // You can create a Prediction model to store results
-    // const prediction = await Prediction.create({
-    //   userId: req.user._id,
-    //   input: clinical,
-    //   result: mlResponse.data,
-    //   createdAt: new Date()
-    // });
+    // Save prediction to database
+    const predictionData = {
+      user: req.user._id,
+      type: image_base64 ? 'multimodal' : 'tabular',
+      inputData: {
+        ...clinical,
+        ...(image_base64 && { imageUrl: 'base64_image' })
+      },
+      result: {
+        prediction: mlResponse.data.prediction === 'PCOS Positive' ? 'positive' : 'negative',
+        confidence: mlResponse.data.confidence || mlResponse.data.pcos_risk_probability,
+        probability: mlResponse.data.pcos_risk_probability,
+        riskLevel: mlResponse.data.risk_level?.toLowerCase(),
+        details: {
+          timestamp: mlResponse.data.timestamp,
+          input_summary: mlResponse.data.input_summary,
+          follicle_count: mlResponse.data.follicle_count
+        }
+      },
+      recommendations: mlResponse.data.recommendations || [],
+      status: 'completed',
+      processedAt: new Date()
+    };
 
-    // Return prediction result
+    const savedPrediction = await Prediction.create(predictionData);
+
+    // Return prediction result with database ID
     res.json({
       success: true,
-      data: mlResponse.data
+      data: mlResponse.data,
+      predictionId: savedPrediction._id
     });
 
   } catch (error) {
@@ -172,15 +191,27 @@ router.get('/minimal-input', protect, async (req, res) => {
  */
 router.get('/history', protect, async (req, res) => {
   try {
-    // TODO: Implement prediction history from database
-    // const predictions = await Prediction.find({ userId: req.user._id })
-    //   .sort({ createdAt: -1 })
-    //   .limit(10);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const predictions = await Prediction.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .skip(skip)
+      .select('-inputData.imagePath');
+
+    const total = await Prediction.countDocuments({ user: req.user._id });
 
     res.json({
       success: true,
-      data: [],
-      message: 'Prediction history feature coming soon'
+      data: predictions,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
     });
   } catch (error) {
     res.status(500).json({

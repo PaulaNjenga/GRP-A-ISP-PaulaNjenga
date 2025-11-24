@@ -13,7 +13,12 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('femihealth_token')
-    if (token) {
+    const tempToken = localStorage.getItem('femihealth_temp_token')
+    
+    // Use tempToken for MFA verification, otherwise use regular token
+    if (config.url?.includes('/auth/mfa/verify') && tempToken) {
+      config.headers.Authorization = `Bearer ${tempToken}`
+    } else if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
@@ -143,6 +148,24 @@ export const adminAPI = {
   
   // System health
   getSystemHealth: () => api.get('/admin/health'),
+}
+
+// Doctor API (RBAC)
+export const doctorAPI = {
+  // Get doctor dashboard stats
+  getStats: () => api.get('/doctor/stats'),
+  
+  // Get doctor's patients
+  getPatients: () => api.get('/doctor/patients'),
+  
+  // Get doctor's diagnoses
+  getDiagnoses: (page = 1, limit = 10) => api.get(`/doctor/diagnoses?page=${page}&limit=${limit}`),
+  
+  // Get predictions for review
+  getPredictionsForReview: (page = 1, limit = 20) => api.get(`/doctor/predictions?page=${page}&limit=${limit}`),
+  
+  // Review a prediction
+  reviewPrediction: (id, reviewNotes) => api.put(`/doctor/predictions/${id}/review`, { reviewNotes }),
 }
 
 // Export/Report API

@@ -69,7 +69,7 @@ export const register = async (req, res) => {
     }
 
     // Generate JWT token
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, { mfaVerified: !user.mfaEnabled });
 
     res.status(201).json({
       success: true,
@@ -82,6 +82,7 @@ export const register = async (req, res) => {
           email: user.email,
           role: user.role,
           mfaEnabled: user.mfaEnabled,
+          mfaVerified: !user.mfaEnabled,
           emailVerified: user.emailVerified,
         },
       },
@@ -108,34 +109,41 @@ export const login = async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Check for user
+    console.log('Login attempt for email:', email);
+
+    // Find user and verify password
     const user = await User.findOne({ email }).select('+password');
+    
     if (!user) {
+      console.log('User not found:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    // Check password
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
+    
+    const isPasswordValid = await user.matchPassword(password);
+    if (!isPasswordValid) {
+      console.log('Invalid password for user:', email);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
-    // Check if email is verified (optional - can be enforced or just warned)
-    // Uncomment to enforce email verification:
-    // if (!user.emailVerified) {
-    //   return res.status(401).json({ 
-    //     message: 'Please verify your email before logging in',
-    //     emailVerified: false 
-    //   });
-    // }
+    
+    console.log('Login successful for:', email, 'Role:', user.role);
 
     // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate token
-    const token = generateToken(user._id);
+    // Simple MFA logic: if MFA enabled, require verification
+    if (user.mfaEnabled) {
+      const tempToken = generateToken(user._id, { mfaVerified: false });
+      return res.json({
+        success: true,
+        mfaRequired: true,
+        tempToken,
+        message: 'MFA verification required'
+      });
+    }
 
+    // No MFA - full access token
+    const token = generateToken(user._id, { mfaVerified: true });
     res.json({
       success: true,
       data: {
@@ -146,12 +154,11 @@ export const login = async (req, res) => {
           email: user.email,
           role: user.role,
           mfaEnabled: user.mfaEnabled,
-          emailVerified: user.emailVerified,
+          mfaVerified: true,
         },
       },
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -186,33 +193,35 @@ export const verifyToken = async (req, res) => {
 // @access  Private
 export const setupMFA = async (req, res) => {
   try {
+    console.log('🔧 Setting up MFA for user:', req.user.email);
+    
     const secret = speakeasy.generateSecret({
       name: `FemiHealth (${req.user.email})`,
       issuer: 'FemiHealth',
     });
+    
+    console.log('✅ Secret generated');
 
-    // Save secret to user
     req.user.mfaSecret = secret.base32;
     await req.user.save();
+    
+    console.log('✅ Secret saved to user');
 
-    // Generate QR code
-    const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+    
+    console.log('✅ QR code generated');
 
     res.json({
       success: true,
       data: {
+        qrCode,
         secret: secret.base32,
         qrCodeUrl: secret.otpauth_url,
-        qrCode: qrCodeUrl,
       },
     });
   } catch (error) {
-    console.error('MFA setup error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error during MFA setup', 
-      error: error.message 
-    });
+    console.error('❌ MFA setup error:', error);
+    res.status(500).json({ message: 'MFA setup failed', error: error.message });
   }
 };
 
@@ -224,26 +233,19 @@ export const verifyMFA = async (req, res) => {
     const { token } = req.body;
 
     if (!token || token.length !== 6) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Invalid token format. Please enter a 6-digit code.' 
-      });
+      return res.status(400).json({ message: 'Invalid 6-digit code' });
     }
 
     const user = await User.findById(req.user._id).select('+mfaSecret');
-
     if (!user.mfaSecret) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'MFA not set up. Please set up MFA first.' 
-      });
+      return res.status(400).json({ message: 'MFA not set up' });
     }
 
     const verified = speakeasy.totp.verify({
       secret: user.mfaSecret,
       encoding: 'base32',
       token: token.toString(),
-      window: 2, // Allow 2 time steps before/after for clock skew
+      window: 2,
     });
 
     if (verified) {
@@ -253,23 +255,22 @@ export const verifyMFA = async (req, res) => {
       res.json({
         success: true,
         data: {
-          message: 'MFA enabled successfully',
-          mfaEnabled: true,
+          token: generateToken(user._id, { mfaVerified: true }),
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            mfaEnabled: true,
+            mfaVerified: true,
+          },
         },
       });
     } else {
-      res.status(400).json({ 
-        success: false,
-        message: 'Invalid verification code. Please try again.' 
-      });
+      res.status(400).json({ message: 'Invalid verification code' });
     }
   } catch (error) {
-    console.error('MFA verification error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error during MFA verification', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'MFA verification failed', error: error.message });
   }
 };
 
@@ -355,7 +356,7 @@ export const resetPassword = async (req, res) => {
     await user.save();
 
     // Generate new JWT token
-    const jwtToken = generateToken(user._id);
+    const jwtToken = generateToken(user._id, { mfaVerified: !user.mfaEnabled });
 
     res.json({
       success: true,
@@ -367,6 +368,8 @@ export const resetPassword = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
+          mfaEnabled: user.mfaEnabled,
+          mfaVerified: !user.mfaEnabled,
         },
       },
     });
@@ -443,7 +446,7 @@ export const verifyEmail = async (req, res) => {
     }
 
     // Generate JWT token
-    const jwtToken = generateToken(user._id);
+    const jwtToken = generateToken(user._id, { mfaVerified: !user.mfaEnabled });
 
     res.json({
       success: true,
@@ -456,6 +459,8 @@ export const verifyEmail = async (req, res) => {
           email: user.email,
           role: user.role,
           emailVerified: user.emailVerified,
+          mfaEnabled: user.mfaEnabled,
+          mfaVerified: !user.mfaEnabled,
         },
       },
     });

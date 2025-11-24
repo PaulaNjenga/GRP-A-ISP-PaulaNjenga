@@ -20,6 +20,7 @@ import predictRoutes from './routes/predict.js';
 import predictionRoutes from './routes/prediction.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
+import doctorRoutes from './routes/doctor.js';
 import exportRoutes from './routes/export.js';
 import fileRoutes from './routes/files.js';
 
@@ -82,6 +83,7 @@ app.use('/api/predict', predictRoutes);
 app.use('/api/prediction', predictionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/doctor', doctorRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/files', fileRoutes);
 

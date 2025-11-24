@@ -7,10 +7,12 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
-  const [showMFA, setShowMFA] = useState(false)
   const [mfaToken, setMfaToken] = useState('')
-  const { login, verifyMFA, loading, error, clearError } = useAuth()
+  const { login, verifyMFA, loading, error, clearError, clearMFA, clearAllTokens, state } = useAuth()
   const navigate = useNavigate()
+  
+  // Use mfaRequired from AuthContext instead of local state
+  const showMFA = state?.mfaRequired || false
 
   const {
     register,
@@ -30,18 +32,26 @@ const Login = () => {
     }
   }, [error, clearError])
 
+  useEffect(() => {
+    console.log('🔄 showMFA state changed:', showMFA)
+  }, [showMFA])
+
   const onSubmit = async (data) => {
     console.log('Form submitted with data:', data)
     const result = await login(data)
     console.log('Login result:', result)
     
     if (result.success) {
-      // Check if user needs MFA verification
-      if (result.user?.mfaEnabled && !result.user?.mfaVerified) {
-        setShowMFA(true)
+      // Check if MFA is required
+      if (result.mfaRequired) {
+        console.log('🔒 MFA required, AuthContext will handle state')
+        // AuthContext already set mfaRequired to true, no need to set local state
       } else {
+        console.log('✅ No MFA required, navigating to dashboard')
         navigate('/dashboard')
       }
+    } else {
+      console.log('❌ Login failed:', result.error)
     }
   }
 
@@ -55,7 +65,10 @@ const Login = () => {
     }
   }
 
+  console.log('🔍 Current showMFA state:', showMFA)
+  
   if (showMFA) {
+    console.log('🔒 Rendering MFA form')
     return (
       <div className="min-h-screen gradient-bg flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
@@ -104,7 +117,7 @@ const Login = () => {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => setShowMFA(false)}
+                onClick={() => clearMFA()}
                 className="text-sm text-primary-600 hover:text-primary-500"
               >
                 Back to login
@@ -237,13 +250,32 @@ const Login = () => {
 
         {/* Demo Account Info */}
         <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="text-sm font-medium text-blue-800 mb-2">Demo Account</h3>
+          <h3 className="text-sm font-medium text-blue-800 mb-2">Test Account</h3>
           <p className="text-xs text-blue-600 mb-2">
-            Try FemiHealth with our demo account:
+            Try FemiHealth with this test account:
           </p>
           <div className="text-xs text-blue-700 space-y-1">
-            <div>Email: demo@femihealth.com</div>
-            <div>Password: demo123456</div>
+            <div>Email: test@test.com</div>
+            <div>Password: test123456</div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                document.querySelector('input[name="email"]').value = 'test@test.com';
+                document.querySelector('input[name="password"]').value = 'test123456';
+              }}
+              className="text-xs bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded"
+            >
+              Fill credentials
+            </button>
+            <button
+              type="button"
+              onClick={clearAllTokens}
+              className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded"
+            >
+              Clear tokens
+            </button>
           </div>
         </div>
       </div>

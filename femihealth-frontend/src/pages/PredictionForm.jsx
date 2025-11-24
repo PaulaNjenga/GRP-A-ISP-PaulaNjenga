@@ -64,8 +64,15 @@ const PredictionForm = () => {
         result = await predictionAPI.predictTabular(data)
       }
 
-      // Navigate to results page
-      navigate(`/results/${result.data.predictionId}`)
+      console.log('Prediction result:', result)
+      
+      // Navigate to results page - handle nested response structure
+      const predictionId = result.data?.predictionId || result.data?.prediction?._id
+      if (predictionId) {
+        navigate(`/results/${predictionId}`)
+      } else {
+        setError('Prediction completed but no ID returned')
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Prediction failed. Please try again.')
     } finally {

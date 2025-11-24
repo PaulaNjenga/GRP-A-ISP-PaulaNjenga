@@ -96,9 +96,10 @@ const AdminDashboard = () => {
   const handleUserRoleUpdate = async (userId, newRole) => {
     try {
       await adminAPI.updateUser(userId, { role: newRole })
-      setUsers(users.map(user => 
-        user.id === userId ? { ...user, role: newRole } : user
-      ))
+      setUsers(users.map(user => {
+        const id = user._id || user.id;
+        return id === userId ? { ...user, role: newRole } : user;
+      }))
     } catch (err) {
       console.error('Failed to update user role:', err)
     }
@@ -106,10 +107,12 @@ const AdminDashboard = () => {
 
   const handleUserStatusUpdate = async (userId, status) => {
     try {
-      await adminAPI.updateUser(userId, { status })
-      setUsers(users.map(user => 
-        user.id === userId ? { ...user, status } : user
-      ))
+      const isActive = status === 'active';
+      await adminAPI.updateUser(userId, { isActive })
+      setUsers(users.map(user => {
+        const id = user._id || user.id;
+        return id === userId ? { ...user, isActive } : user;
+      }))
     } catch (err) {
       console.error('Failed to update user status:', err)
     }
@@ -133,8 +136,7 @@ const AdminDashboard = () => {
   }
 
   const filteredUsers = Array.isArray(users) ? users.filter(user => {
-    const matchesSearch = user.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesRole = filterRole === 'all' || user.role === filterRole
     return matchesSearch && matchesRole
@@ -373,64 +375,71 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
-                              <span className="text-primary-600 font-medium">
-                                {user.firstName?.[0]}{user.lastName?.[0]}
-                              </span>
-                            </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
-                                {user.firstName} {user.lastName}
-                              </div>
-                              <div className="text-sm text-gray-500">{user.email}</div>
-                            </div>
+                    {filteredUsers.map((user) => {
+                    const userName = user.name || 'Unknown User';
+                    const initials = userName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                    const userId = user._id || user.id;
+                    const userStatus = user.isActive ? 'active' : 'inactive';
+                    
+                    return (
+                    <tr key={userId} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span className="text-primary-600 font-medium">
+                              {initials}
+                            </span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={user.role}
-                            onChange={(e) => handleUserRoleUpdate(user.id, e.target.value)}
-                            className="text-sm border border-gray-300 rounded px-2 py-1"
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">
+                              {userName}
+                            </div>
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <select
+                          value={user.role}
+                          onChange={(e) => handleUserRoleUpdate(userId, e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1"
+                        >
+                          <option value="user">User</option>
+                          <option value="doctor">Doctor</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          userStatus === 'active' 
+                            ? 'bg-success-100 text-success-800'
+                            : 'bg-danger-100 text-danger-800'
+                        }`}>
+                          {userStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(user.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleUserStatusUpdate(
+                              userId, 
+                              userStatus === 'active' ? 'inactive' : 'active'
+                            )}
+                            className={`text-xs px-2 py-1 rounded ${
+                              userStatus === 'active'
+                                ? 'text-danger-600 hover:text-danger-900'
+                                : 'text-success-600 hover:text-success-900'
+                            }`}
                           >
-                            <option value="user">User</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            user.status === 'active' 
-                              ? 'bg-success-100 text-success-800'
-                              : 'bg-danger-100 text-danger-800'
-                          }`}>
-                            {user.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleUserStatusUpdate(
-                                user.id, 
-                                user.status === 'active' ? 'inactive' : 'active'
-                              )}
-                              className={`text-xs px-2 py-1 rounded ${
-                                user.status === 'active'
-                                  ? 'text-danger-600 hover:text-danger-900'
-                                  : 'text-success-600 hover:text-success-900'
-                              }`}
-                            >
-                              {user.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                            {userStatus === 'active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )})}
                   </tbody>
                 </table>
               </div>
@@ -465,24 +474,29 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {predictions.slice(0, 10).map((prediction) => (
-                      <tr key={prediction.id} className="hover:bg-gray-50">
+                    {predictions.slice(0, 10).map((prediction) => {
+                      const confidence = prediction.result?.confidence || 0;
+                      const userName = prediction.user?.name || 'Unknown User';
+                      const predictionId = prediction._id || prediction.id;
+                      
+                      return (
+                      <tr key={predictionId} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {prediction.user?.firstName} {prediction.user?.lastName}
+                          {userName}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            prediction.risk < 0.3 
+                            confidence < 0.3 
                               ? 'bg-success-100 text-success-800'
-                              : prediction.risk < 0.7
+                              : confidence < 0.7
                               ? 'bg-warning-100 text-warning-800'
                               : 'bg-danger-100 text-danger-800'
                           }`}>
-                            {prediction.risk < 0.3 ? 'Low' : prediction.risk < 0.7 ? 'Moderate' : 'High'}
+                            {confidence < 0.3 ? 'Low' : confidence < 0.7 ? 'Moderate' : 'High'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {(prediction.risk * 100).toFixed(1)}%
+                          {(confidence * 100).toFixed(1)}%
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(prediction.createdAt).toLocaleDateString()}
@@ -493,7 +507,7 @@ const AdminDashboard = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )})}  
                   </tbody>
                 </table>
               </div>
